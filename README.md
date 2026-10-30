@@ -22,7 +22,7 @@ Open the local URL printed by Streamlit. The first pipeline run downloads market
 
 ## Daily reports
 
-After the first successful workflow run and GitHub Pages setup, the report archive will be available at [namuan.github.io/spy-market-intelligence](https://namuan.github.io/spy-market-intelligence/). The workflow runs on weekdays at 23:30 UTC and can also be started with **Publish daily SPY report → Run workflow** in the Actions tab. It preserves dated reports and rebuilds the index. In **Settings → Pages**, select the `gh-pages` branch and `/` (root) as the publishing source after that branch has been created by the first run.
+After the first successful workflow run and GitHub Pages setup, the report archive will be available at [namuan.github.io/spy-market-intelligence](https://namuan.github.io/spy-market-intelligence/). The workflow runs on weekdays at 22:30 UTC (18:30 during US daylight time, 17:30 during standard time) and can also be started with **Publish daily SPY report → Run workflow** in the Actions tab. This is approximately 1.5–2.5 hours after the regular 16:00 ET close because GitHub Actions cron uses UTC and does not adjust for daylight saving time. It preserves dated reports and rebuilds the index. In **Settings → Pages**, select the `gh-pages` branch and `/` (root) as the publishing source after that branch has been created by the first run.
 
 ## Dashboard screenshots
 

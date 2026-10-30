@@ -2,7 +2,7 @@ name: Publish daily SPY report
 
 on:
   schedule:
-    - cron: "30 23 * * 1-5"
+    - cron: "30 22 * * 1-5"
   workflow_dispatch:
 
 permissions:
