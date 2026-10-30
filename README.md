@@ -2,6 +2,14 @@
 
 A small, transparent Streamlit application for daily SPY monitoring. The MVP includes SPY price/momentum indicators, VIX, LQD/IEF, RSP/SPY, Treasury yield proxies, a heuristic market score, an expanding historical analogue summary, a basic walk-forward unconditional baseline check, local SQLite persistence, and forecast history.
 
+## Disclaimer
+
+This project is for educational and informational purposes only. It is not investment, financial, legal, or tax advice, and it is not a recommendation, offer, or solicitation to buy or sell any security. The dashboard does not consider any user's objectives, financial situation, or risk tolerance. Consult a qualified financial professional before making investment decisions.
+
+Market data may be incomplete, delayed, revised, or inaccurate. Forecasts, scores, classifications, historical frequencies, and backtests are experimental, heuristic, and unvalidated; they are not guarantees of future results. Investing involves risk, including the possible loss of principal. Independently verify data and calculations before relying on them.
+
+The project code is distributed under the [MIT License](LICENSE). That license does not grant rights to third-party market data or change the data providers' terms of use.
+
 ## Dashboard screenshots
 
 Captured from the running dashboard with Yahoo Finance data on 2026-10-30. Displayed market values are historical snapshots and may no longer be current.
@@ -45,7 +53,6 @@ uv run python -m src.pipeline
 - The Brier check evaluates a simple unconditional expanding base rate at 20-session intervals with a horizon purge. It is a baseline diagnostic, not evidence of forecast skill or an investment strategy backtest.
 - Current forecasts are saved once per session date and are immutable. The MVP does not yet store constituent-level source observations or provide production-grade retries, authentication, alerting, or monitoring.
 
-Do not use the output as a substitute for independent data verification or financial advice.
 
 ## Tests
 
