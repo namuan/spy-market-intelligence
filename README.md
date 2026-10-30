@@ -1,6 +1,6 @@
 # SPY Market Intelligence MVP
 
-A small, transparent Streamlit application for daily SPY monitoring. The MVP includes SPY price/momentum indicators, VIX, LQD/IEF, RSP/SPY, Treasury yield proxies, a heuristic market score, an expanding historical analogue summary, a basic walk-forward unconditional baseline check, local SQLite persistence, and forecast history.
+A transparent Streamlit application for daily SPY monitoring. It includes price and momentum indicators, VIX, credit and breadth proxies, Treasury-yield proxies, a heuristic score, historical 20-session analysis, a basic walk-forward baseline check, and forecast history stored locally in SQLite.
 
 ## Disclaimer
 
@@ -10,9 +10,19 @@ Market data may be incomplete, delayed, revised, or inaccurate. Forecasts, score
 
 The project code is distributed under the [MIT License](LICENSE). That license does not grant rights to third-party market data or change the data providers' terms of use.
 
+## Quick start
+
+```bash
+uv sync --extra test
+uv run python -m src.pipeline
+uv run streamlit run app.py
+```
+
+Open the local URL printed by Streamlit. The first pipeline run downloads market history, stores it in `data/market_intelligence.sqlite3`, and saves a forecast. Later, use **Refresh market data** in the sidebar to update it.
+
 ## Dashboard screenshots
 
-Captured from the running dashboard with Yahoo Finance data on 2026-10-30. Displayed market values are historical snapshots and may no longer be current.
+Captured with Yahoo Finance data on 2026-10-30. These are historical snapshots and may no longer reflect current market conditions.
 
 **Desktop**
 
@@ -22,37 +32,26 @@ Captured from the running dashboard with Yahoo Finance data on 2026-10-30. Displ
 
 ![SPY Market Intelligence dashboard at mobile width](screenshots/dashboard-mobile.png)
 
-## Run locally
+## Scheduled updates
 
-```bash
-uv sync --extra test
-uv run python -m src.pipeline
-uv run streamlit run app.py
-```
-
-The database is created at `data/market_intelligence.sqlite3`. Click **Refresh market data** in the sidebar to fetch current data and save a forecast. Run a timezone-aware weekday scheduler at 18:30 America/New_York with:
+Run the timezone-aware weekday scheduler at 18:30 America/New_York:
 
 ```bash
 uv run python -m src.scheduler
 ```
 
-Keep this process running under a process manager on the machine that owns the SQLite database. The pipeline also runs once on demand:
+Keep the process running under a process manager on the machine that owns the SQLite database. The pipeline can also be run on demand with `uv run python -m src.pipeline`.
 
-```bash
-uv run python -m src.pipeline
-```
+## MVP scope and limitations
 
-## MVP assumptions and limitations
-
-- Yahoo Finance through `yfinance` is the default no-key development source. It is best-effort, may be delayed or revised, and is not a licensed production data feed. Confirm provider terms before redistribution or production use.
-- Adjusted daily prices are used for return calculations. Yahoo Finance `^TNX` and `^IRX` are yield-index proxies, not a point-in-time macroeconomic database. The 3-month / 10-year curve is illustrative.
+- Yahoo Finance through `yfinance` is the default development source. It is best-effort, may be delayed or revised, and is not a licensed production feed. Confirm provider terms before redistribution or production use.
+- Adjusted daily prices are used for return calculations. Yahoo Finance `^TNX` and `^IRX` are yield-index proxies, not a point-in-time macroeconomic database; the 3-month / 10-year curve is illustrative.
 - SQLite is used for a zero-configuration MVP. The production specification calls for PostgreSQL; migrate before multi-user or hosted deployment.
-- RSP/SPY is a breadth proxy, not constituent-level breadth. There is no point-in-time constituent membership, sector rotation model, options dataset, macro release calendar, or licensed credit spread series.
-- The score and BUY BIAS / HOLD / REDUCE RISK labels are descriptive heuristics, not validated trading recommendations. Missing categories are disclosed in code-level scope; zero-valued categories are neutral placeholders.
-- The 20-session historical reference groups prior matured observations by whether trailing 20-session SPY return was positive or negative. It uses overlapping outcomes and is not a validated analogue model; displayed confidence is intentionally low.
-- The Brier check evaluates a simple unconditional expanding base rate at 20-session intervals with a horizon purge. It is a baseline diagnostic, not evidence of forecast skill or an investment strategy backtest.
-- Current forecasts are saved once per session date and are immutable. The MVP does not yet store constituent-level source observations or provide production-grade retries, authentication, alerting, or monitoring.
-
+- RSP/SPY is a breadth proxy, not constituent-level breadth. Point-in-time constituent membership, sector rotation, options, a macro release calendar, and licensed credit-spread data are not included.
+- The score and BUY BIAS / HOLD / REDUCE RISK labels are descriptive heuristics, not validated trading recommendations. Neutral placeholder categories are disclosed in the decision breakdown.
+- Historical 20-session references group prior matured observations by the sign of the trailing 20-session SPY return. Outcomes overlap, so observations are not independent; this is not a validated analogue model.
+- The walk-forward Brier check is a simple expanding unconditional baseline sampled every 20 sessions with a horizon purge. It does not establish forecast skill or strategy profitability.
+- Forecasts are saved once per session date and are immutable. Production-grade retries, authentication, alerting, and monitoring are not yet implemented.
 
 ## Tests
 
