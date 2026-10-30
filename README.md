@@ -20,6 +20,10 @@ uv run streamlit run app.py
 
 Open the local URL printed by Streamlit. The first pipeline run downloads market history, stores it in `data/market_intelligence.sqlite3`, and saves a forecast. Later, use **Refresh market data** in the sidebar to update it.
 
+## Daily reports
+
+After the first successful workflow run and GitHub Pages setup, the report archive will be available at [namuan.github.io/spy-market-intelligence](https://namuan.github.io/spy-market-intelligence/). The workflow runs on weekdays at 23:30 UTC and can also be started with **Publish daily SPY report → Run workflow** in the Actions tab. It preserves dated reports and rebuilds the index. In **Settings → Pages**, select the `gh-pages` branch and `/` (root) as the publishing source after that branch has been created by the first run.
+
 ## Dashboard screenshots
 
 Captured with Yahoo Finance data on 2026-10-30. These are historical snapshots and may no longer reflect current market conditions.
