@@ -1,0 +1,1410 @@
+# Project Specification: SPY Daily Market Intelligence Platform
+
+**Project name:** SPY Market Intelligence  
+**Version:** 1.0 — Implementation Specification  
+**Status:** Ready for delegation  
+**Primary instrument:** SPY (SPDR S&P 500 ETF Trust)  
+**Forecast horizon:** Next 20 US trading sessions  
+**Technology:** Python, Streamlit, PostgreSQL, scheduled data pipelines  
+**Primary output:** Interactive daily market intelligence dashboard  
+**Secondary outputs:** Daily reports, historical forecasts, backtesting results and alerts
+
+---
+
+# 1. Executive Summary
+
+## 1.1 Project Objective
+
+Build a production-quality, automated market intelligence platform that evaluates the US equity market through SPY and generates an evidence-based assessment of expected market conditions over the following 20 trading sessions.
+
+The platform must:
+
+1. Collect and validate financial market data automatically.
+2. Calculate a comprehensive collection of technical, volatility, credit, breadth, liquidity and macroeconomic indicators.
+3. Identify the prevailing market regime.
+4. Evaluate whether conditions support bullish continuation, sideways consolidation or bearish correction.
+5. Estimate forward 20-trading-day return distributions using historical evidence.
+6. Generate an interpretable BUY / HOLD / REDUCE RISK classification.
+7. Explain which indicators support or contradict the assessment.
+8. Track daily changes in market conditions.
+9. Store every forecast and compare it with subsequent actual market performance.
+10. Present results in an interactive Streamlit dashboard.
+11. Operate automatically after US market close, without requiring manual intervention.
+12. Clearly distinguish verified data, model estimates, heuristic classifications and unavailable information.
+
+**Critical design principle:** The platform must not blindly reproduce existing trading rules. It must calculate raw indicators independently and establish whether their predictive usefulness is supported by historical testing.
+
+## 1.2 Intended Users
+
+The primary user is an individual investor or market analyst who wants to monitor SPY and make more informed decisions about equity exposure over approximately one month.
+
+The system is a decision-support tool, not an automated trading platform.
+
+**Out of scope for Version 1:** Trade execution, brokerage integration, leveraged ETF allocation, individual stock recommendations and intraday algorithmic trading.
+
+## 1.3 Primary User Questions
+
+Every daily report must answer:
+
+- Is the SPY market environment currently bullish, neutral or bearish?
+- Is the current trend strengthening or weakening?
+- Is the rally supported by broad market participation?
+- Are credit and volatility markets signalling increased risk?
+- What has changed since yesterday?
+- What are the historical 20-day outcomes following similar conditions?
+- What is the probability of a positive return, based on validated historical evidence?
+- What is the plausible upside and downside range?
+- Which indicators would cause the outlook to change?
+- Does the evidence favour adding exposure, maintaining exposure or reducing risk?
+
+---
+
+# 2. Reference Material and Existing System
+
+## 2.1 Original Daily Rebalance Report
+
+The existing PDF report dated October 29, 2026, should be treated as the initial reference for indicator coverage.
+
+It includes five analytical sections:
+
+1. VIX Signals Analysis using IVTS and median filters.
+2. Credit Market Canary using LQD/IEF, moving averages and percentage price oscillators.
+3. TQQQ Volatility Bucket Strategy using ATR-normalized volatility.
+4. TQQQ Volatility Regime Strategy using CALM, NORMAL, STRESS and PANIC states.
+5. Treasury Yield Analysis using Treasury yields, spreads and curve regimes.
+
+The new platform must retain the useful raw indicators while replacing the strategy-specific trading conclusions with a SPY-focused analysis.
+
+### Required corrections and verification
+
+- Verify the exact definition and direction of the IVTS ratio.
+- Verify whether the existing contango/backwardation descriptions match the underlying calculations.
+- Document all volatility maturity conventions.
+- Align data timestamps across all sources.
+- Replace TQQQ allocation recommendations with SPY-relevant risk analysis.
+- Preserve useful Treasury curve classifications, but validate their implementation.
+- Do not assume that indicators originally developed for leveraged ETFs are predictive for SPY.
+
+The existing report covers January–October 2026. This is insufficient history for a reliable one-month forecasting model.
+
+Historical data should extend back as far as consistently available, with a preferred research window of at least 10–15 years.
+
+---
+
+# 3. Functional Requirements
+
+## 3.1 Daily Data Collection
+
+The system must collect the latest available information for:
+
+### Equity prices
+
+- SPY
+- RSP — equal-weight S&P 500 proxy
+- QQQ — Nasdaq 100
+- IWM — Russell 2000
+- DIA — Dow Jones Industrial Average proxy
+- Relevant sector ETFs
+
+### Volatility
+
+- VIX
+- VIX9D
+- VIX3M
+- VIX futures term structure, if licensed data is available
+- SPY realized volatility
+- SPY ATR-based volatility
+- Options skew and put/call ratios where reliable data is available
+
+### Credit
+
+- LQD
+- IEF
+- HYG
+- High-yield option-adjusted spreads
+- Investment-grade credit spreads
+
+### Interest rates
+
+- 3-month Treasury yield
+- 2-year Treasury yield
+- 5-year Treasury yield
+- 10-year Treasury yield
+- 30-year Treasury yield
+- 10-year minus 3-month spread
+- 10-year minus 2-year spread
+
+### Market breadth
+
+- Percentage of S&P 500 constituents above SMA20
+- Percentage above SMA50
+- Percentage above SMA200
+- Advance/decline statistics
+- New 52-week highs and lows
+- Equal-weight versus capitalization-weight performance
+
+### Macro and liquidity
+
+- US dollar index or suitable proxy
+- Chicago Fed National Financial Conditions Index
+- Federal Reserve policy rate
+- Inflation releases
+- Employment releases
+- Treasury issuance and liquidity proxies where reliable data is available
+
+### Market events
+
+- Federal Reserve meetings
+- CPI releases
+- Employment reports
+- GDP releases
+- Major earnings dates
+- Options expiration dates
+
+The system must use actual release calendars, not assumed recurring dates.
+
+## 3.2 Data Source Strategy
+
+Recommended sources:
+
+| Data | Preferred source | Alternative |
+|---|---|---|
+| ETF OHLCV | Licensed market-data API | Yahoo Finance for development |
+| Treasury yields | US Treasury / FRED | Licensed provider |
+| Credit spreads | FRED / ICE BofA series | Licensed provider |
+| VIX indices | Cboe-authorized source | Historical research dataset |
+| Market breadth | Constituent-level data provider | Breadth ETF proxies |
+| Economic releases | Official agency calendars | Economic calendar API |
+| Options data | Licensed options provider | Omit until available |
+
+The developer must confirm data licensing, historical coverage, rate limits, redistribution permissions and ongoing costs before selecting production providers.
+
+A missing premium dataset must not be silently replaced with an unrelated indicator.
+
+## 3.3 Data Freshness and Integrity
+
+Every dataset must record:
+
+- Instrument or series identifier
+- Observation date
+- Observation timestamp, where available
+- Source
+- Retrieval timestamp
+- Publication or release timestamp
+- Adjusted versus unadjusted price basis
+- Data quality status
+- Missing values
+- Revision status, where relevant
+
+Use the America/New_York timezone for US market-session logic and UTC for internal timestamps.
+
+The system must support US market holidays and early closes.
+
+A scheduled update must not mark a report complete until all mandatory datasets have passed validation.
+
+If optional datasets are unavailable, the report may still run, but it must disclose the missing coverage and reduce model confidence appropriately.
+
+---
+
+# 4. Indicator Engine
+
+Implement each indicator as an independent, documented and testable Python module.
+
+Every indicator must return:
+
+- Raw value
+- Historical comparison
+- Direction of change
+- Normalized value, where applicable
+- Interpretation
+- Data freshness
+- Data quality
+- Explanation
+- Historical predictive evidence, when available
+
+## 4.1 Price and Momentum Indicators
+
+Calculate:
+
+- SMA20, SMA50, SMA100 and SMA200
+- EMA20 and EMA50
+- RSI(14)
+- MACD(12,26,9)
+- 5-day return
+- 10-day return
+- 20-day return
+- 60-day return
+- Distance from moving averages
+- 20-day realized volatility
+- ATR(14)
+- ATR relative to historical median
+- Maximum drawdown over rolling windows
+
+Determine whether SPY is:
+
+- Trending upward
+- Consolidating
+- Losing upward momentum
+- Breaking down
+- Recovering from a correction
+
+Avoid using RSI above 70 as an automatic SELL signal. Interpret it in the context of trend and historical performance.
+
+## 4.2 Market Breadth Indicators
+
+Calculate:
+
+- Percentage of constituents above SMA20
+- Percentage above SMA50
+- Percentage above SMA200
+- Advance/decline ratio
+- Cumulative advance/decline line
+- New highs minus new lows
+- RSP/SPY relative strength
+- Breadth divergence from SPY
+
+The system must account for historical constituent membership to avoid survivorship bias.
+
+If point-in-time membership is unavailable, label the breadth series as a proxy or research limitation.
+
+Identify conditions such as:
+
+- Broadly supported rally
+- Narrow leadership
+- Improving participation
+- Deteriorating participation
+- Broad market weakness
+
+## 4.3 Volatility Indicators
+
+Calculate:
+
+- VIX level
+- VIX 5-day and 20-day changes
+- VIX9D/VIX ratio
+- VIX/VIX3M ratio
+- VIX futures front-month/second-month ratio, if available
+- SPY realized volatility
+- Implied versus realized volatility
+- ATR volatility regime
+- Volatility percentile relative to historical data
+
+Explicitly define whether each ratio represents contango or backwardation.
+
+Volatility regime classifications:
+
+- Low
+- Normal
+- Elevated
+- High stress
+
+Thresholds should initially be based on historical percentiles and subsequently validated.
+
+## 4.4 Credit Indicators
+
+Calculate:
+
+- LQD/IEF ratio
+- LQD/IEF SMA200
+- LQD/IEF EMA20 and EMA50
+- Percentage price oscillators
+- HYG/IEF relative strength
+- High-yield spread level
+- High-yield spread 5-day change
+- High-yield spread 20-day change
+- Investment-grade spread trend
+
+Detect:
+
+- Improving credit conditions
+- Stable credit conditions
+- Emerging credit deterioration
+- Severe risk aversion
+
+Credit spreads must be interpreted using their own historical distribution rather than arbitrary universal thresholds.
+
+## 4.5 Treasury Indicators
+
+Calculate:
+
+- Current yields by maturity
+- Yield changes over 5 and 20 trading days
+- Yield curve slopes
+- Curve steepening or flattening
+- Historical yield percentiles
+- Rate volatility where data is available
+
+Classify:
+
+- Bull steepening
+- Bear steepening
+- Bull flattening
+- Bear flattening
+- Inverted yield curve
+
+Do not automatically interpret falling yields as bullish. Their significance depends on inflation, growth expectations, credit conditions and the equity market reaction.
+
+## 4.6 Sector Rotation
+
+Track relative strength for:
+
+- XLK — Technology
+- XLF — Financials
+- XLI — Industrials
+- XLY — Consumer Discretionary
+- XLP — Consumer Staples
+- XLV — Healthcare
+- XLU — Utilities
+- XLE — Energy
+- SMH — Semiconductors
+
+Calculate sector performance over 5, 20 and 60 sessions.
+
+Identify:
+
+- Cyclical leadership
+- Defensive leadership
+- Technology concentration
+- Broad participation
+- Sector leadership reversals
+
+---
+
+# 5. Market Scoring Engine
+
+## 5.1 Initial Score Architecture
+
+Start with six indicator groups:
+
+| Category | Initial weight |
+|---|---:|
+| Price and momentum | 25% |
+| Market breadth | 25% |
+| Credit conditions | 15% |
+| Volatility and options | 15% |
+| Liquidity and macro | 10% |
+| Sector rotation | 10% |
+| **Total** | **100%** |
+
+These weights are initial research assumptions, not established predictive relationships.
+
+## 5.2 Score Calculation
+
+Each category produces a normalized score between -100 and +100.
+
+The composite score is the weighted average of the six categories.
+
+Initial descriptive classification:
+
+| Composite score | Classification |
+|---|---|
+| +60 to +100 | Strong bullish |
+| +20 to below +60 | Moderately bullish |
+| -20 to below +20 | Neutral |
+| -60 to below -20 | Moderately bearish |
+| -100 to below -60 | Strong bearish |
+
+The boundaries must be configurable.
+
+The developer must test whether these categories have useful predictive power. If not, the classifications must be revised or removed.
+
+## 5.3 Correlation Controls
+
+Avoid double-counting highly correlated indicators.
+
+For example:
+
+- RSI, MACD and moving-average distance may measure similar momentum effects.
+- VIX, realized volatility and ATR may respond to the same underlying stress.
+- Several credit ratios may convey overlapping information.
+
+Implement correlation analysis, feature redundancy reporting and sensitivity testing.
+
+The dashboard must explain the contribution of each category to the composite score.
+
+---
+
+# 6. Twenty-Trading-Day Forecast Engine
+
+This is the most important analytical component.
+
+## 6.1 Forecast Targets
+
+For each historical observation date, calculate:
+
+1. SPY forward 20-session total return.
+2. Maximum adverse excursion over the following 20 sessions.
+3. Maximum favourable excursion.
+4. Whether the final return is positive.
+5. Whether a drawdown of at least 3%, 5% or 8% occurs.
+6. Forward realized volatility.
+7. Maximum drawdown within the forecast horizon.
+
+Use split- and distribution-adjusted prices for total-return calculations.
+
+Keep raw market prices separately for charting and execution-level comparisons.
+
+## 6.2 Historical Analogue Model
+
+Identify historical market conditions similar to the current state using:
+
+- Trend
+- Momentum
+- Breadth
+- Credit
+- Volatility
+- Treasury conditions
+- Sector rotation
+
+Normalize features using information available at the historical observation date.
+
+Use a documented similarity method, such as standardized nearest neighbours.
+
+For each forecast, show:
+
+- Number of comparable historical observations
+- Median forward return
+- Mean forward return
+- Positive-return frequency
+- 10th and 90th percentile outcomes
+- Historical drawdown frequency
+- Effective sample size
+- Confidence limitations
+
+Overlapping 20-day windows must not be treated as statistically independent.
+
+## 6.3 Predictive Models
+
+Develop and compare:
+
+**Baseline A:** Historical unconditional 20-day SPY return distribution.
+
+**Baseline B:** Simple price trend model.
+
+**Model C:** Historical analogue model.
+
+**Model D:** Regularized logistic regression for positive-return probability.
+
+**Model E:** Gradient-boosted model, only if it demonstrates robust out-of-sample improvement.
+
+Complex models must not automatically replace simpler models.
+
+Select models based on predictive calibration, robustness and out-of-sample performance.
+
+## 6.4 Scenario Probabilities
+
+Estimate:
+
+- Probability of positive 20-day return
+- Probability of a negative 20-day return
+- Probability of a decline of at least 3%
+- Probability of a decline of at least 5%
+- Expected or median return
+- Predictive return interval
+
+Also classify outcomes into mutually exclusive categories, for example:
+
+- Bullish: return above +2%
+- Sideways: return between -2% and +2%, inclusive
+- Bearish: return below -2%
+
+These thresholds must be configurable.
+
+All three scenario probabilities must sum to 100%.
+
+If historical evidence is insufficient or model calibration is poor, display **Insufficient evidence** rather than fabricated probabilities.
+
+## 6.5 Forecast Confidence
+
+Confidence should reflect:
+
+- Data completeness
+- Model calibration
+- Out-of-sample stability
+- Number of effective historical analogues
+- Distance from previously observed market conditions
+- Agreement or disagreement between models
+
+Confidence must not be based solely on how many indicators are bullish.
+
+---
+
+# 7. Historical Backtesting Framework
+
+## 7.1 Requirements
+
+Backtest across multiple market regimes, ideally including:
+
+- 2011 US debt-ceiling volatility
+- 2015–2016 market turbulence
+- 2018 tightening and correction
+- 2020 pandemic crash
+- 2022 inflation and tightening cycle
+- 2023–2025 market environments
+- 2026 observations available at evaluation time
+
+The exact start date depends on historical data availability.
+
+## 7.2 Point-in-Time Integrity
+
+This requirement is mandatory.
+
+For every historical forecast, the model must use only information that was available at that point in time.
+
+Controls must include:
+
+- No future prices in features
+- No full-sample normalization
+- No future constituent membership
+- No unreleased economic data
+- No future-revised macroeconomic values presented as original observations
+- No training labels that overlap into the evaluation period
+- Appropriate purging and embargoes for overlapping forecast windows
+
+Historical macroeconomic release dates and revisions must be considered.
+
+## 7.3 Walk-Forward Validation
+
+Use expanding-window or rolling-window training.
+
+Example:
+
+- Train on the initial historical period.
+- Predict the next evaluation period.
+- Advance the training window.
+- Retrain according to a fixed schedule.
+- Repeat through the available history.
+
+Keep a final untouched holdout period for model selection confirmation.
+
+The developer must document all training and testing date ranges.
+
+## 7.4 Evaluation Metrics
+
+Measure:
+
+- Directional accuracy
+- Balanced accuracy where appropriate
+- Brier score
+- Log loss
+- Probability calibration
+- Mean absolute error for return estimates
+- Prediction interval coverage
+- Maximum drawdown prediction quality
+- Performance across different volatility regimes
+- Stability across time periods
+
+Compare every model with simple baselines.
+
+## 7.5 Strategy Simulation
+
+Separately evaluate whether forecast-based allocation decisions would have improved risk-adjusted outcomes.
+
+Possible simulated states:
+
+- Full SPY exposure
+- Reduced SPY exposure
+- Cash or Treasury-bill allocation
+
+Include:
+
+- Transaction costs
+- Slippage assumptions
+- Dividends
+- Financing and cash returns
+- Rebalance timing
+- Turnover
+- Maximum drawdown
+- Sharpe ratio
+- Sortino ratio
+- CAGR
+- Buy-and-hold comparison
+
+Do not use backtest profitability as the only model-selection criterion.
+
+The platform must distinguish forecast quality from strategy profitability.
+
+---
+
+# 8. BUY / HOLD / REDUCE RISK Decision Layer
+
+The system should generate an actionable interpretation without pretending to know the user's full portfolio.
+
+## 8.1 Outputs
+
+- **BUY BIAS:** Conditions historically favour maintaining or increasing equity exposure.
+- **HOLD:** Evidence is mixed or does not justify changing exposure.
+- **REDUCE RISK:** Conditions suggest elevated downside risk.
+
+Avoid presenting these as guaranteed recommendations.
+
+## 8.2 Decision Logic
+
+The initial decision engine should consider:
+
+- Composite score
+- Calibrated positive-return probability
+- Estimated downside risk
+- Current volatility regime
+- Credit deterioration
+- Market breadth
+- Model confidence
+
+The exact decision thresholds must be developed and validated during the research phase.
+
+## 8.3 Explainability
+
+Every classification must contain:
+
+1. Three strongest supporting indicators.
+2. Three strongest opposing indicators, where present.
+3. Important changes from yesterday.
+4. Conditions that would invalidate the current assessment.
+5. Historical evidence supporting the conclusion.
+6. Known data and model limitations.
+
+Do not generate unsupported commentary.
+
+A language model may optionally rewrite structured findings into readable prose, but it must not invent market data, probabilities or explanations.
+
+---
+
+# 9. Streamlit Dashboard Specification
+
+## 9.1 Page 1 — Daily Overview
+
+This is the default landing page.
+
+Display:
+
+- Current SPY price
+- Latest completed trading session
+- Daily percentage change
+- Market regime
+- Composite score
+- BUY / HOLD / REDUCE RISK interpretation
+- Forecast probability of positive 20-day return
+- Expected 20-day return
+- Downside risk estimate
+- Forecast confidence
+- Data freshness indicator
+- Daily market commentary
+
+Include a visual summary of all six analytical categories.
+
+## 9.2 Page 2 — Price and Momentum
+
+Interactive charts:
+
+- SPY candlestick chart
+- SMA20, SMA50 and SMA200 overlays
+- RSI
+- MACD
+- Volume
+- ATR
+- Historical volatility
+
+Support selectable timeframes:
+
+- 1 month
+- 3 months
+- 6 months
+- 1 year
+- 5 years
+- Maximum available
+
+## 9.3 Page 3 — Market Breadth
+
+Display:
+
+- Percentage of stocks above moving averages
+- Advance/decline line
+- New highs versus lows
+- RSP/SPY relative strength
+- Breadth divergence indicators
+
+Include a summary of whether the current rally is broad or narrow.
+
+## 9.4 Page 4 — Volatility and Credit
+
+Display:
+
+- VIX term structure
+- VIX historical percentile
+- SPY realized volatility
+- Credit spreads
+- LQD/IEF
+- HYG/IEF
+- Changes over 5 and 20 sessions
+
+Clearly distinguish spot volatility indices from futures prices.
+
+## 9.5 Page 5 — Macro and Treasury
+
+Display:
+
+- Treasury yield curve
+- Yield changes
+- Curve regime
+- Financial conditions
+- Dollar strength
+- Upcoming economic events
+
+## 9.6 Page 6 — Forecast and Scenarios
+
+Display:
+
+- Predicted 20-day return distribution
+- Probability of positive return
+- Bullish/sideways/bearish probabilities
+- Historical analogues
+- Expected downside range
+- Forecast confidence
+- Model comparison
+
+Show actual historical outcome distributions, not merely arbitrary forecast bands.
+
+## 9.7 Page 7 — Backtesting
+
+Display:
+
+- Walk-forward forecast performance
+- Probability calibration chart
+- Forecast versus actual returns
+- Historical confusion matrix
+- Brier score and other evaluation metrics
+- Buy-and-hold comparison
+- Strategy equity curve, if strategy simulation is enabled
+- Performance by market regime
+
+## 9.8 Page 8 — Forecast History
+
+Store and display every daily forecast.
+
+Required columns:
+
+- Forecast date
+- SPY closing price
+- Market regime
+- Composite score
+- Positive-return probability
+- Expected 20-day return
+- Downside probability
+- Forecast confidence
+- Decision classification
+- Actual 20-day return, when matured
+- Forecast error
+- Model version
+
+Users must be able to filter, search and download the history.
+
+## 9.9 Page 9 — System Health
+
+Display:
+
+- Last successful update
+- Data source status
+- Missing datasets
+- Stale observations
+- Failed pipeline stages
+- Current model version
+- Last successful model validation
+- Scheduler status
+- Error logs
+
+---
+
+# 10. Daily Automation
+
+## 10.1 Schedule
+
+Run after the US market closes, using an exchange-aware calendar.
+
+Suggested process:
+
+1. Wait for the scheduled post-close collection window.
+2. Download market data.
+3. Validate timestamps and completeness.
+4. Update the database.
+5. Calculate indicators.
+6. Calculate the composite score.
+7. Generate the 20-day forecast.
+8. Generate the daily interpretation.
+9. Save the forecast permanently.
+10. Refresh the dashboard's published data.
+11. Generate the daily report.
+12. Send alerts when required.
+
+Use America/New_York timezone rules so daylight-saving changes do not shift the intended market-relative schedule.
+
+The scheduler must account for provider publication delays.
+
+## 10.2 Failure Handling
+
+If a source fails:
+
+- Retry using exponential backoff.
+- Avoid duplicate data insertion.
+- Record the error.
+- Preserve the last valid observation.
+- Clearly mark stale data.
+- Do not generate a new forecast from incomplete mandatory inputs.
+- Alert the administrator after repeated failures.
+
+The pipeline must be idempotent.
+
+## 10.3 Model Retraining
+
+Daily forecasts should not require full model retraining.
+
+Suggested initial schedule:
+
+- Daily: Data refresh, indicator calculations, forecast generation.
+- Weekly: Data quality review and performance monitoring.
+- Monthly: Candidate model retraining and validation.
+- Quarterly: Full research review and potential model promotion.
+
+New models must pass validation before replacing the production model.
+
+---
+
+# 11. Database Design
+
+Recommended production database: PostgreSQL.
+
+Required logical tables:
+
+### market_prices
+
+Stores OHLCV, adjusted prices, instruments and timestamps.
+
+### macro_observations
+
+Stores yields, spreads, economic indicators, release dates and revisions.
+
+### breadth_observations
+
+Stores constituent-level and aggregated market breadth.
+
+### indicator_values
+
+Stores calculated indicators and calculation versions.
+
+### composite_scores
+
+Stores category scores and overall market scores.
+
+### forecasts
+
+Stores immutable daily forecasts, probabilities, model versions and prediction intervals.
+
+### forecast_outcomes
+
+Stores realized forward returns and drawdowns after the forecast horizon completes.
+
+### backtest_runs
+
+Stores backtest configurations, model versions and evaluation results.
+
+### data_quality_events
+
+Stores missing data, stale observations and validation failures.
+
+### pipeline_runs
+
+Stores scheduler execution status, duration and errors.
+
+### model_registry
+
+Stores model versions, training windows, feature sets, metrics and promotion status.
+
+### configuration_versions
+
+Stores scoring weights, thresholds and decision rules used for each forecast.
+
+All historical forecasts must remain reproducible after subsequent model or configuration changes.
+
+---
+
+# 12. Proposed Software Architecture
+
+Use a modular Python architecture.
+
+```text
+spy-market-intelligence/
+│
+├── app/
+│   ├── Home.py
+│   ├── pages/
+│   │   ├── price_momentum.py
+│   │   ├── market_breadth.py
+│   │   ├── volatility_credit.py
+│   │   ├── macro_treasury.py
+│   │   ├── forecasts.py
+│   │   ├── backtesting.py
+│   │   ├── forecast_history.py
+│   │   └── system_health.py
+│   └── components/
+│
+├── src/
+│   ├── data/
+│   │   ├── providers/
+│   │   ├── ingestion.py
+│   │   ├── validation.py
+│   │   └── storage.py
+│   │
+│   ├── indicators/
+│   │   ├── momentum.py
+│   │   ├── breadth.py
+│   │   ├── volatility.py
+│   │   ├── credit.py
+│   │   ├── treasury.py
+│   │   ├── liquidity.py
+│   │   └── sectors.py
+│   │
+│   ├── models/
+│   │   ├── features.py
+│   │   ├── scoring.py
+│   │   ├── analogues.py
+│   │   ├── forecasting.py
+│   │   ├── calibration.py
+│   │   └── registry.py
+│   │
+│   ├── backtesting/
+│   │   ├── walk_forward.py
+│   │   ├── metrics.py
+│   │   ├── simulations.py
+│   │   └── reports.py
+│   │
+│   ├── reporting/
+│   │   ├── daily_report.py
+│   │   ├── commentary.py
+│   │   └── alerts.py
+│   │
+│   └── pipeline/
+│       ├── daily_update.py
+│       ├── scheduler.py
+│       └── monitoring.py
+│
+├── database/
+│   └── migrations/
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── data_quality/
+│   └── backtesting/
+│
+├── config/
+├── docs/
+├── .github/workflows/
+├── requirements.txt
+├── pyproject.toml
+├── Dockerfile
+├── .env.example
+└── README.md
+```
+
+Architecture principles:
+
+- Separate data acquisition from calculation.
+- Separate indicator calculation from forecasting.
+- Separate forecasting from decision classification.
+- Separate historical research from live inference.
+- Keep Streamlit presentation code independent of core financial calculations.
+- Make data providers replaceable.
+- Store model and configuration versions.
+- Ensure every output is reproducible.
+
+---
+
+# 13. Security and Deployment
+
+## 13.1 Hosting
+
+Recommended initial production deployment:
+
+- Streamlit application hosted on a managed cloud service.
+- PostgreSQL hosted on a managed database service.
+- Scheduled Python jobs through GitHub Actions or a managed job scheduler.
+- Private GitHub repository.
+- Access-controlled dashboard.
+- Secure secret storage.
+
+The exact cloud provider should be chosen based on cost, reliability and operational simplicity.
+
+## 13.2 Security Requirements
+
+- Never commit API keys.
+- Use environment variables or a secret manager.
+- Require authentication for non-public dashboards.
+- Use encrypted database connections.
+- Maintain dependency security updates.
+- Restrict database permissions.
+- Protect logs from exposing credentials.
+- Back up persistent forecast history.
+- Document restoration procedures.
+
+## 13.3 Operational Monitoring
+
+Monitor:
+
+- Pipeline success rate
+- Data freshness
+- Data-provider errors
+- Forecast generation failures
+- Dashboard availability
+- Database availability
+- Model drift
+- Forecast calibration deterioration
+
+---
+
+# 14. Testing and Quality Assurance
+
+## 14.1 Unit Tests
+
+Verify:
+
+- Moving averages
+- RSI
+- MACD
+- ATR
+- Volatility ratios
+- Credit ratios
+- Yield spreads
+- Forward returns
+- Drawdown calculations
+- Score normalization
+- Scenario probability totals
+
+Compare indicator results with independently calculated reference examples.
+
+## 14.2 Integration Tests
+
+Verify:
+
+- Data download and storage
+- API failure handling
+- Database writes
+- Full daily pipeline
+- Dashboard queries
+- Forecast persistence
+- Report generation
+
+## 14.3 Backtesting Integrity Tests
+
+Verify:
+
+- No look-ahead bias
+- No future macroeconomic releases
+- No full-sample scaling leakage
+- Correct treatment of overlapping outcomes
+- Correct trading-session alignment
+- Reproducibility across runs
+
+## 14.4 Acceptance Tests
+
+The completed system must satisfy:
+
+1. A daily run completes successfully with valid source data.
+2. Every displayed figure has an identifiable source and observation date.
+3. The system identifies stale or missing data.
+4. The dashboard shows the latest valid SPY analysis.
+5. Indicator calculations pass independent unit tests.
+6. Every forecast is stored with its model and configuration version.
+7. The historical backtest can be reproduced from a clean environment.
+8. Scenario probabilities are mathematically consistent.
+9. Forecast outcomes are recorded after 20 trading sessions.
+10. Users can inspect historical predictions and actual outcomes.
+11. The application can be deployed using documented instructions.
+12. The system does not claim validated predictive performance without supporting results.
+
+---
+
+# 15. Implementation Phases
+
+## Phase 1 — Foundation and Data Infrastructure
+
+**Estimated duration: 1–2 weeks**
+
+Tasks:
+
+- Initialize repository.
+- Define application architecture.
+- Select market-data providers.
+- Set up PostgreSQL.
+- Implement historical data ingestion.
+- Implement market calendars.
+- Implement source timestamps and quality checks.
+- Set up testing and CI.
+- Build initial Streamlit shell.
+
+Deliverable: Reliable historical market-data infrastructure and basic dashboard.
+
+**Acceptance gate:** Data can be retrieved, stored, validated and queried reproducibly.
+
+## Phase 2 — Indicator Engine
+
+**Estimated duration: 2 weeks**
+
+Tasks:
+
+- Implement price indicators.
+- Implement volatility indicators.
+- Implement credit indicators.
+- Implement Treasury indicators.
+- Implement breadth indicators.
+- Implement sector rotation.
+- Implement composite scoring.
+- Build indicator visualizations.
+
+Deliverable: Fully functional market-condition dashboard.
+
+**Acceptance gate:** Every indicator is independently tested and traceable to source data.
+
+## Phase 3 — Forecasting and Historical Research
+
+**Estimated duration: 2–3 weeks**
+
+Tasks:
+
+- Build point-in-time feature dataset.
+- Calculate 20-day historical outcomes.
+- Develop baseline models.
+- Develop analogue model.
+- Implement walk-forward validation.
+- Evaluate model calibration.
+- Compare predictive models.
+- Implement forecast confidence assessment.
+
+Deliverable: Validated research report and initial forecasting engine.
+
+**Acceptance gate:** Forecasting performance is documented against baseline models using out-of-sample evidence.
+
+## Phase 4 — Dashboard and Reporting
+
+**Estimated duration: 1–2 weeks**
+
+Tasks:
+
+- Build all dashboard pages.
+- Add interactive charts.
+- Add scenario visualizations.
+- Add forecast history.
+- Add daily commentary.
+- Add downloadable reports.
+- Add model explanation views.
+
+Deliverable: Complete interactive Streamlit interface.
+
+**Acceptance gate:** All dashboard pages display validated data and handle missing information correctly.
+
+## Phase 5 — Automation and Deployment
+
+**Estimated duration: 1 week**
+
+Tasks:
+
+- Implement daily scheduler.
+- Add retry and failure handling.
+- Deploy database and dashboard.
+- Configure authentication.
+- Configure logging and monitoring.
+- Implement backup and recovery.
+- Test scheduled production execution.
+
+Deliverable: Automatically updating hosted application.
+
+**Acceptance gate:** Multiple consecutive scheduled runs complete successfully without manual intervention.
+
+## Phase 6 — Validation and Handover
+
+**Estimated duration: 1–2 weeks**
+
+Tasks:
+
+- Run end-to-end acceptance tests.
+- Review financial calculation correctness.
+- Review model leakage risks.
+- Test deployment recovery.
+- Finalize documentation.
+- Demonstrate the system.
+- Transfer credentials and operational ownership.
+- Document unresolved limitations.
+
+Deliverable: Production handover package.
+
+**Acceptance gate:** The owner can operate, troubleshoot and maintain the system without relying on the original developer.
+
+---
+
+# 16. Deliverables
+
+The developer must provide:
+
+1. Complete Python source code.
+2. Streamlit dashboard.
+3. Data ingestion framework.
+4. Indicator calculation library.
+5. Historical data storage.
+6. Forecasting engine.
+7. Walk-forward backtesting framework.
+8. Daily report generator.
+9. Automated scheduling workflow.
+10. Database schema and migrations.
+11. Automated test suite.
+12. Deployment configuration.
+13. Environment configuration example.
+14. Technical architecture documentation.
+15. User operating guide.
+16. Data-provider and licensing documentation.
+17. Backtest methodology and results.
+18. Model limitations and assumptions document.
+19. Monitoring and incident recovery guide.
+20. Final demonstration and handover.
+
+---
+
+# 17. Estimated Effort and Budget
+
+These are planning estimates, not vendor quotations.
+
+| Workstream | Estimated effort |
+|---|---:|
+| Data infrastructure | 40–70 hours |
+| Indicator calculations | 50–80 hours |
+| Forecasting and backtesting | 80–140 hours |
+| Dashboard and visualization | 45–75 hours |
+| Automation and deployment | 25–45 hours |
+| Testing and documentation | 40–65 hours |
+| **Total** | **280–475 hours** |
+
+A capable full-stack Python developer with quantitative finance experience could deliver the initial system in approximately 8–12 weeks, subject to data availability and scope.
+
+A small team with a quantitative researcher, Python engineer and part-time frontend/deployment support may deliver faster.
+
+Recurring costs will depend on:
+
+- Market-data subscriptions
+- Options and breadth data licensing
+- Cloud hosting
+- Database hosting
+- Monitoring
+- Optional language-model usage
+
+Do not commit to paid data subscriptions before confirming which datasets materially improve out-of-sample forecasting.
+
+---
+
+# 18. Delegation and Work Management
+
+## 18.1 Suggested Roles
+
+**Technical Lead / Python Developer**
+
+Responsible for architecture, ingestion, backend, database and deployment.
+
+**Quantitative Researcher**
+
+Responsible for indicator definitions, forecasting, backtesting, calibration and statistical validation.
+
+**Dashboard Developer**
+
+Responsible for Streamlit interface, visualization and user experience.
+
+**QA / Reviewer**
+
+Responsible for independent financial calculation checks, integration testing and acceptance criteria.
+
+One experienced developer may cover several roles, but quantitative model validation should receive independent review.
+
+## 18.2 Development Rules
+
+The development team must:
+
+- Work through defined phases.
+- Use version control.
+- Submit reviewed pull requests.
+- Include tests with every analytical module.
+- Document assumptions.
+- Never invent unavailable financial data.
+- Never silently substitute datasets.
+- Avoid future-data leakage.
+- Preserve historical forecast records.
+- Report limitations transparently.
+- Demonstrate functionality before declaring tasks complete.
+
+## 18.3 Progress Reporting
+
+Provide a weekly update containing:
+
+- Completed deliverables
+- Current work
+- Blockers
+- Data availability issues
+- Test results
+- Risks
+- Upcoming milestones
+- Decisions required from the project owner
+
+---
+
+# 19. Minimum Viable Product
+
+If delivery time or budget is constrained, build the following first:
+
+**MVP requirements:**
+
+- SPY daily price history
+- Price and momentum indicators
+- VIX indicators
+- LQD/IEF credit indicator
+- Treasury yields
+- RSP/SPY relative strength
+- Transparent composite score
+- Historical 20-day return analysis
+- Simple walk-forward baseline model
+- Daily forecast storage
+- Streamlit dashboard
+- Automatic updates
+- Data quality monitoring
+
+**MVP exclusions:**
+
+- Expensive options data
+- Dealer gamma exposure
+- Advanced machine-learning models
+- Full constituent-level breadth, if licensed data is unavailable
+- Complex portfolio optimization
+- Brokerage integration
+
+The MVP must still include point-in-time validation and reproducible forecasting research.
+
+---
+
+# 20. Definition of Done
+
+The project is complete when:
+
+**Every US trading day, after the required market data becomes available, the system automatically produces a current SPY market assessment covering the following 20 trading sessions.**
+
+The user can open a secure Streamlit dashboard and see:
+
+- Current SPY market conditions.
+- Raw indicator readings.
+- Changes since the previous session.
+- Market breadth, momentum, volatility, credit and macroeconomic conditions.
+- A transparent composite assessment.
+- Historically grounded forward-return estimates.
+- Downside-risk estimates.
+- BUY / HOLD / REDUCE RISK interpretation.
+- Evidence supporting and contradicting the conclusion.
+- Historical forecasts and their actual outcomes.
+- Model validation results.
+- Data freshness and system health.
+
+The system must be maintainable, reproducible and capable of being evaluated objectively as new market outcomes become available.
+
+**Final principle:** The platform's purpose is not to generate a confident trading signal every day. Its purpose is to measure market conditions accurately, quantify uncertainty and identify when the evidence is strong enough to support a change in SPY exposure.
+
