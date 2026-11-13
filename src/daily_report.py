@@ -4,8 +4,10 @@ import html
 from pathlib import Path
 
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.io import to_html
 
-from src.forecast import score_breakdown
+from src.forecast import category_scores, score_breakdown
 from src.indicators import calculate_indicators
 from src.pipeline import run_daily_update
 from src.storage import load_market_data
@@ -31,7 +33,101 @@ def _card(title: str, value: str, detail: str) -> str:
     )
 
 
-def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Series, source: str) -> str:
+def _score_charts(score_history: pd.DataFrame) -> str:
+    score_columns = {
+        "Price and momentum": "return_20d",
+        "Breadth proxy": "rsp_spy_return_20d",
+        "Credit conditions": "credit_return_20d",
+        "Volatility": "vix",
+        "Treasury curve": "curve_10y_3m_pct",
+    }
+    categories = list(category_scores(score_history.iloc[-1]))
+    charts = []
+    for index, category in enumerate(categories):
+        input_column = score_columns.get(category)
+        history = score_history.dropna(subset=[input_column]) if input_column else score_history
+        scored_history = [category_scores(row) for _, row in history.iterrows()]
+        daily_scores = pd.Series(
+            [scores[category] for scores in scored_history],
+            index=history.index,
+            name=category,
+        )
+        candles = daily_scores.resample("W-FRI").ohlc().dropna()
+        if candles.empty:
+            charts.append(
+                '<figure class="score-chart-card"><figcaption>'
+                + html.escape(category)
+                + '</figcaption><p class="chart-caption">No valid score history is available for this category.</p></figure>'
+            )
+            continue
+        figure = go.Figure(
+            go.Candlestick(
+                x=candles.index,
+                open=candles["open"],
+                high=candles["high"],
+                low=candles["low"],
+                close=candles["close"],
+                name=category,
+                increasing_line_color="#16a34a",
+                decreasing_line_color="#d97706",
+                whiskerwidth=0.6,
+                hovertemplate="Week: %{x|%b %d, %Y}<br>Open: %{open:.1f}<br>High: %{high:.1f}<br>Low: %{low:.1f}<br>Close: %{close:.1f}<extra></extra>",
+            )
+        )
+        figure.add_hline(y=0, line_color="#94a3b8", line_dash="dot", line_width=1)
+        figure.update_layout(
+            height=440,
+            margin={"l": 55, "r": 24, "t": 16, "b": 24},
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
+            hovermode="x unified",
+            dragmode="pan",
+            showlegend=False,
+            font={"family": "Inter, system-ui, sans-serif", "color": "#526174", "size": 12},
+            xaxis={
+                "showgrid": False,
+                "range": [
+                    (candles.index[-1] - pd.DateOffset(years=5)).strftime("%Y-%m-%d"),
+                    candles.index[-1].strftime("%Y-%m-%d"),
+                ],
+                "rangeslider": {"visible": True, "thickness": 0.12},
+                "rangeselector": {
+                    "buttons": [
+                        {"count": 1, "label": "1M", "step": "month", "stepmode": "backward"},
+                        {"count": 6, "label": "6M", "step": "month", "stepmode": "backward"},
+                        {"count": 1, "label": "1Y", "step": "year", "stepmode": "backward"},
+                        {"count": 5, "label": "5Y", "step": "year", "stepmode": "backward"},
+                        {"step": "all", "label": "All"},
+                    ],
+                    "font": {"size": 11},
+                },
+            },
+            yaxis={
+                "autorange": True,
+                "title": "Score",
+                "gridcolor": "#e2e8f0",
+                "zeroline": False,
+                "fixedrange": False,
+            },
+        )
+        chart_html = to_html(
+            figure,
+            full_html=False,
+            include_plotlyjs="cdn" if index == 0 else False,
+            config={"responsive": True, "scrollZoom": True, "displaylogo": False},
+            div_id=f"score-chart-{index}",
+        )
+        charts.append(
+            '<figure class="score-chart-card"><figcaption>'
+            + html.escape(category)
+            + f'<strong>{candles["close"].iloc[-1]:+.1f}</strong></figcaption>'
+            + chart_html
+            + "</figure>"
+        )
+    return '<div class="score-chart-grid">' + "".join(charts) + "</div>"
+
+
+def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Series, source: str, score_history: pd.DataFrame) -> str:
     available = forecast_result.get("status") == "available"
     score = forecast_result.get("score") if available else None
     score_label = _number(score, 1) + "/100" if score is not None else "Insufficient evidence"
@@ -59,6 +155,7 @@ def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Seri
     card_markup = "\n".join(cards)
     if available:
         score_rows = []
+        score_charts = _score_charts(score_history)
         for item in forecast_result["score_breakdown"]:
             score_rows.append(
                 "<tr><td>"
@@ -74,7 +171,9 @@ def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Seri
             + html.escape(forecast_result["decision_reason"])
             + "</p><p>"
             + html.escape(forecast_result["decision_inputs"])
-            + '</p><div class="table-wrap"><table><thead><tr><th>Category</th><th>Current input</th><th>Score</th><th>Weight</th><th>Contribution</th><th>Scoring rule</th></tr></thead><tbody>'
+            + '</p><h3>Category score history</h3><p class="chart-caption">Each chart shows weekly OHLC candles of available daily category scores, on a −100 to +100 scale; the default view is the latest five years.</p>'
+            + score_charts
+            + '<div class="table-wrap"><table><thead><tr><th>Category</th><th>Current input</th><th>Score</th><th>Weight</th><th>Contribution</th><th>Scoring rule</th></tr></thead><tbody>'
             + "".join(score_rows)
             + "</tbody></table></div>"
         )
@@ -109,6 +208,12 @@ h1 {{ margin: 8px 0; font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -.04em
 section.content {{ border-top: 1px solid #dbe2ea; padding-top: 18px; margin-top: 30px; }}
 h2 {{ margin-top: 0; }}
 .table-wrap {{ overflow-x: auto; }}
+.score-chart-grid {{ display: grid; grid-template-columns: 1fr; gap: 16px; margin: 12px 0 24px; }}
+.score-chart-card {{ min-width: 0; margin: 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; }}
+.score-chart-card figcaption {{ display: flex; justify-content: space-between; gap: 12px; font-size: .92rem; font-weight: 600; }}
+.score-chart-card figcaption strong {{ font-variant-numeric: tabular-nums; }}
+.score-chart-card svg {{ display: block; width: 100%; height: auto; margin-top: 12px; }}
+.chart-caption {{ color: #64748b; font-size: .9rem; margin-bottom: 0; }}
 table {{ border-collapse: collapse; width: 100%; background: white; font-size: .9rem; }}
 th, td {{ padding: 11px 12px; border: 1px solid #e2e8f0; text-align: left; vertical-align: top; }}
 th {{ background: #eef2f7; white-space: nowrap; }}
@@ -165,7 +270,7 @@ def publish_report(site_dir: Path = Path("site")) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"{report_date}.html"
     report_path.write_text(
-        render_daily_report(report_date, forecast_result, indicators.iloc[-1], metadata["source"]),
+        render_daily_report(report_date, forecast_result, indicators.iloc[-1], metadata["source"], indicators),
         encoding="utf-8",
     )
     index_path = site_dir / "index.html"

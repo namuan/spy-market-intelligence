@@ -46,10 +46,18 @@ def test_report_contains_decision_breakdown_and_escapes_provider_text():
     close, ohlc = sample_data(700)
     indicators = calculate_indicators(close, ohlc)
     result = forecast(indicators)
-    report = render_daily_report("2021-11-02", result, indicators.iloc[-1], "Source <provider>")
+    report = render_daily_report("2021-11-02", result, indicators.iloc[-1], "Source <provider>", indicators)
     assert "Decision breakdown" in report
     assert "<th>Contribution</th>" in report
     assert "<th>Scoring rule</th>" in report
+    assert report.count('class="score-chart-card"') == 6
+    assert '"rangeslider"' in report
+    assert '"rangeselector"' in report
+    assert '"scrollZoom"' in report
+    assert report.count('"autorange":true') == 6
+    assert '"type":"candlestick"' in report
+    assert "weekly OHLC candles of daily category scores" in report
+    assert "Price and momentum" in report
     assert "Source &lt;provider&gt;" in report
 
 
