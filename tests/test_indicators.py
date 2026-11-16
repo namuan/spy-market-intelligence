@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from src.daily_report import render_daily_report, render_index
+from src.daily_report import _history_table, render_daily_report, render_index
 from src.forecast import composite_score, forecast, score_breakdown
 from src.indicators import calculate_indicators, forward_outcomes
 from src.storage import load_market_data, save_market_data
@@ -56,9 +56,22 @@ def test_report_contains_decision_breakdown_and_escapes_provider_text():
     assert '"scrollZoom"' in report
     assert report.count('"autorange":true') == 6
     assert '"type":"candlestick"' in report
-    assert "weekly OHLC candles of daily category scores" in report
+    assert "weekly OHLC candles of available daily category scores" in report
     assert "Price and momentum" in report
     assert "Source &lt;provider&gt;" in report
+
+
+def test_history_table_shows_latest_seven_sessions():
+    history = [
+        {"date": f"2026-11-{day:02d}", "spy_close": 700 + day, "score": float(day)}
+        for day in range(1, 10)
+    ]
+    table = _history_table(history)
+    assert table.count("<tr>") == 8
+    assert "2026-11-09" in table
+    assert "2026-11-03" in table
+    assert "2026-11-02" not in table
+    assert "$709.00" in table
 
 
 def test_report_index_links_archived_reports():

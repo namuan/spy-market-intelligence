@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +20,50 @@ def _pct(value: float | None) -> str:
 
 def _number(value: float | None, digits: int = 2) -> str:
     return "Unavailable" if value is None else f"{value:,.{digits}f}"
+
+
+def _daily_snapshot(report_date: str, latest: pd.Series, forecast_result: dict) -> dict:
+    def value(key: str) -> float | None:
+        result = forecast_result.get(key)
+        return None if result is None or pd.isna(result) else float(result)
+
+    spy_close = latest.get("spy_close")
+    return {
+        "date": report_date,
+        "spy_close": None if spy_close is None or pd.isna(spy_close) else float(spy_close),
+        "regime": forecast_result.get("regime"),
+        "decision": forecast_result.get("decision"),
+        "score": value("score"),
+        "positive_probability": value("positive_probability"),
+        "median_return": value("median_return"),
+        "p10_return": value("p10_return"),
+        "p90_return": value("p90_return"),
+        "decline_5pct_probability": value("decline_5pct_probability"),
+    }
+
+
+def _history_cell(value: float | None, formatter) -> str:
+    return "Unavailable" if value is None else formatter(value)
+
+
+def _history_table(history: list[dict]) -> str:
+    rows = []
+    for item in sorted(history, key=lambda row: row["date"], reverse=True)[:7]:
+        values = [
+            html.escape(item["date"]),
+            _history_cell(item.get("spy_close"), lambda number: f"${number:,.2f}"),
+            html.escape(item.get("regime") or "Unavailable"),
+            html.escape(item.get("decision") or "Unavailable"),
+            _history_cell(item.get("score"), lambda number: f"{number:.1f}/100"),
+            _history_cell(item.get("positive_probability"), lambda number: f"{number:.2%}"),
+            _history_cell(item.get("median_return"), lambda number: f"{number:.2%}"),
+            f"{_history_cell(item.get('p10_return'), lambda number: f'{number:.2%}')} to {_history_cell(item.get('p90_return'), lambda number: f'{number:.2%}')}",
+            _history_cell(item.get("decline_5pct_probability"), lambda number: f"{number:.2%}"),
+        ]
+        rows.append("<tr>" + "".join(f"<td>{value}</td>" for value in values) + "</tr>")
+    headings = ("Session", "SPY close", "Regime", "Decision", "Score", "Positive return", "Median return", "10th–90th percentile", "Decline ≥5%")
+    header = "".join(f"<th>{html.escape(title)}</th>" for title in headings)
+    return '<div class="table-wrap"><table><thead><tr>' + header + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
 
 
 def _card(title: str, value: str, detail: str) -> str:
@@ -127,7 +172,7 @@ def _score_charts(score_history: pd.DataFrame) -> str:
     return '<div class="score-chart-grid">' + "".join(charts) + "</div>"
 
 
-def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Series, source: str, score_history: pd.DataFrame) -> str:
+def render_daily_report(report_date: str, forecast_result: dict, latest: pd.Series, source: str, score_history: pd.DataFrame, recent_history: list[dict] | None = None) -> str:
     available = forecast_result.get("status") == "available"
     score = forecast_result.get("score") if available else None
     score_label = _number(score, 1) + "/100" if score is not None else "Insufficient evidence"
@@ -226,6 +271,7 @@ footer {{ color: #64748b; margin-top: 40px; font-size: .86rem; line-height: 1.6;
 <main>
 <header><a href="../index.html">← All daily reports</a><div class="eyebrow">SPY Market Intelligence · Daily report</div><h1>{html.escape(report_date)}</h1><p class="subtitle">Latest market session · Source: {html.escape(source)}</p></header>
 <div class="grid">{card_markup}</div>
+<section class="content"><h2>Last 7 sessions</h2><p class="chart-caption">Daily values as published for each session. Historical return frequencies and ranges are descriptive, not calibrated probabilities.</p>{_history_table(recent_history or [_daily_snapshot(report_date, latest, forecast_result)])}</section>
 <section class="content"><h2>Historical 20-session reference</h2>{historical_detail}</section>
 <section class="content">{score_table}</section>
 <section class="content"><h2>Data and model limitations</h2><div class="notice">For educational and informational purposes only; not investment advice or a recommendation to buy or sell securities. Market data can be delayed, revised, incomplete, or inaccurate. Scores and forecasts are heuristic and unvalidated. Historical results do not guarantee future performance. The historical observations overlap and should not be interpreted as statistically independent.</div></section>
@@ -269,8 +315,15 @@ def publish_report(site_dir: Path = Path("site")) -> Path:
     report_dir = site_dir / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"{report_date}.html"
+    history_path = site_dir / "daily_stats.json"
+    history = json.loads(history_path.read_text(encoding="utf-8")) if history_path.exists() else []
+    snapshot = _daily_snapshot(report_date, indicators.iloc[-1], forecast_result)
+    history = [item for item in history if item.get("date") != report_date]
+    history.append(snapshot)
+    history = sorted(history, key=lambda item: item["date"])[-7:]
+    history_path.write_text(json.dumps(history, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     report_path.write_text(
-        render_daily_report(report_date, forecast_result, indicators.iloc[-1], metadata["source"], indicators),
+        render_daily_report(report_date, forecast_result, indicators.iloc[-1], metadata["source"], indicators, history),
         encoding="utf-8",
     )
     index_path = site_dir / "index.html"
