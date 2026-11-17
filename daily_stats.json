@@ -1,0 +1,14 @@
+[
+  {
+    "date": "2026-11-16",
+    "spy_close": 739.9500122070312,
+    "regime": "Neutral",
+    "decision": "HOLD",
+    "score": 16.20685466335438,
+    "positive_probability": 0.656966792194454,
+    "median_return": 0.01817300859380544,
+    "p10_return": -0.054024582599021986,
+    "p90_return": 0.07088390594413085,
+    "decline_5pct_probability": 0.22731941116056145
+  }
+]
