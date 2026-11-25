@@ -70,5 +70,17 @@
     "p10_return": -0.05425237656157566,
     "p90_return": 0.0708166647241127,
     "decline_5pct_probability": 0.22803418803418804
+  },
+  {
+    "date": "2026-11-24",
+    "spy_close": 718.780029296875,
+    "regime": "Neutral",
+    "decision": "HOLD",
+    "score": 4.565399276248928,
+    "positive_probability": 0.6560683760683761,
+    "median_return": 0.018093559447927454,
+    "p10_return": -0.054252542091866,
+    "p90_return": 0.07081640296704345,
+    "decline_5pct_probability": 0.22803418803418804
   }
 ]
