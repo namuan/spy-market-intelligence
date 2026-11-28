@@ -1,17 +1,5 @@
 [
   {
-    "date": "2026-11-17",
-    "spy_close": 732.4400024414062,
-    "regime": "Neutral",
-    "decision": "HOLD",
-    "score": 7.544033002029877,
-    "positive_probability": 0.6567419575633128,
-    "median_return": 0.018164975163672326,
-    "p10_return": -0.05400241871562262,
-    "p90_return": 0.07086739380490649,
-    "decline_5pct_probability": 0.2272416153319644
-  },
-  {
     "date": "2026-11-18",
     "spy_close": 730.2000122070312,
     "regime": "Neutral",
@@ -82,5 +70,17 @@
     "p10_return": -0.0394999758493631,
     "p90_return": 0.04649988261218596,
     "decline_5pct_probability": 0.13162639740353407
+  },
+  {
+    "date": "2026-11-27",
+    "spy_close": 728.3200073242188,
+    "regime": "Neutral",
+    "decision": "HOLD",
+    "score": 6.699427480511866,
+    "positive_probability": 0.6558441558441559,
+    "median_return": 0.018087813915033113,
+    "p10_return": -0.05424208493048843,
+    "p90_return": 0.0707999868957031,
+    "decline_5pct_probability": 0.22863978127136023
   }
 ]
